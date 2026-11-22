@@ -1,79 +1,83 @@
 #!/usr/bin/env python3
-"""Entry program for make.fun news-image-20261122 - ATLAS v4.
+"""Entry program for make.fun news-image-20261122 - ATLAS v5.
 
-Pipeline stages:
-  1. render  - build the poster twice via render_atlas_v4.build and demand
-               byte-identical PNG output (the renderer is deterministic:
-               no clock, no randomness, no network).
-  2. verify  - parse the PNG header by hand and enforce the kit gates:
-               exactly 1024x1024 and at most 1 MiB.
-  3. emit    - write entry.png to MAKEFUN_OUTPUT_DIR when set, otherwise
-               next to this script, and report size + sha256.
+A PosterJob renders the poster twice through render_atlas_v5, refuses
+to ship unless both renders agree byte for byte, inspects the artifact
+with Pillow itself (format, dimensions, byte budget), then delivers it
+as entry.png into MAKEFUN_OUTPUT_DIR (default: this script's folder).
 """
 
 import hashlib
 import io
 import os
-import struct
 import sys
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import render_atlas_v4  # noqa: E402
+from PIL import Image  # noqa: E402
 
-PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-REQUIRED_DIMENSIONS = (1024, 1024)
-BYTE_LIMIT = 1024 * 1024
+import render_atlas_v5  # noqa: E402
+
+EXPECTED_SIZE = (1024, 1024)
+BYTE_BUDGET = 1024 * 1024  # 1 MiB kit gate
 
 
-def stage_render():
-    """Return the poster's PNG bytes, proving determinism on the way."""
-    def encode():
+class PosterJob:
+    """One deterministic build of the Morning Atlas poster."""
+
+    def __init__(self):
+        out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR")
+        self.target = (Path(out_dir) if out_dir
+                       else Path(__file__).resolve().parent) / "entry.png"
+
+    @staticmethod
+    def _encode():
         buf = io.BytesIO()
-        render_atlas_v4.build().save(buf, format="PNG", optimize=True)
+        render_atlas_v5.poster().save(buf, format="PNG", optimize=True)
         return buf.getvalue()
 
-    first, second = encode(), encode()
-    if first != second:
-        raise SystemExit("rendering is not deterministic")
-    return first
+    def render_reproducibly(self):
+        """Render twice; the kit demands identical bytes on re-runs."""
+        first = self._encode()
+        second = self._encode()
+        if first != second:
+            raise SystemExit("poster render is not reproducible")
+        return first
+
+    @staticmethod
+    def inspect(png_bytes):
+        """Verify the artifact against the kit gates via Pillow."""
+        with Image.open(io.BytesIO(png_bytes)) as probe:
+            if probe.format != "PNG":
+                raise SystemExit("artifact format is %r, not PNG"
+                                 % (probe.format,))
+            if probe.size != EXPECTED_SIZE:
+                raise SystemExit("artifact size is %r, expected %r"
+                                 % (probe.size, EXPECTED_SIZE))
+        if len(png_bytes) > BYTE_BUDGET:
+            raise SystemExit("artifact is %d bytes, budget is %d"
+                             % (len(png_bytes), BYTE_BUDGET))
+
+    def deliver(self, png_bytes):
+        self.target.parent.mkdir(parents=True, exist_ok=True)
+        self.target.write_bytes(png_bytes)
+        return self.target
+
+    def run(self):
+        png_bytes = self.render_reproducibly()
+        self.inspect(png_bytes)
+        path = self.deliver(png_bytes)
+        digest = hashlib.sha256(png_bytes).hexdigest()
+        print("delivered %s" % path)
+        print("1024x1024 PNG | %.1f KiB | sha256 %s"
+              % (len(png_bytes) / 1024.0, digest))
+        return 0
 
 
-def stage_verify(png_bytes):
-    """Enforce the kit gates straight from the PNG byte stream."""
-    if not png_bytes.startswith(PNG_SIGNATURE):
-        raise SystemExit("artifact is not a PNG file")
-    ihdr = png_bytes[16:24]  # width + height, big-endian, inside IHDR
-    dimensions = struct.unpack(">II", ihdr)
-    if dimensions != REQUIRED_DIMENSIONS:
-        raise SystemExit("wrong dimensions: %r" % (dimensions,))
-    if len(png_bytes) > BYTE_LIMIT:
-        raise SystemExit("artifact too big: %d bytes" % len(png_bytes))
-    return dimensions
-
-
-def stage_emit(png_bytes):
-    """Write entry.png to the output directory; return its path."""
-    out_dir = os.environ.get(
-        "MAKEFUN_OUTPUT_DIR",
-        os.path.dirname(os.path.abspath(__file__)))
-    os.makedirs(out_dir, exist_ok=True)
-    path = os.path.join(out_dir, "entry.png")
-    with open(path, "wb") as fh:
-        fh.write(png_bytes)
-    return path
-
-
-def run():
-    png_bytes = stage_render()
-    dimensions = stage_verify(png_bytes)
-    path = stage_emit(png_bytes)
-    digest = hashlib.sha256(png_bytes).hexdigest()
-    print("entry.png -> %s" % path)
-    print("dimensions %dx%d | %d bytes | sha256 %s"
-          % (dimensions[0], dimensions[1], len(png_bytes), digest))
-    return 0
+def main():
+    return PosterJob().run()
 
 
 if __name__ == "__main__":
-    sys.exit(run())
+    sys.exit(main())
