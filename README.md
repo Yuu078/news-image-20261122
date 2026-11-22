@@ -1,8 +1,8 @@
 # news-image-20261122 — THE MORNING ATLAS
 
-[![make.fun](https://img.shields.io/badge/make.fun-bounty-blue)](https://make.fun/bounty/news-image-20261122)
-[![make.fun](https://img.shields.io/badge/make.fun-news--image--20261122-red)](https://make.fun/bounty/news-image-20261122)
-[![make.fun](https://img.shields.io/badge/make.fun-35%20stories-green)](https://make.fun/bounty/news-image-20261122)
+[![make.fun · news-image-20261122](https://make.fun/badge/news-image-20261122.svg)](https://make.fun/bounty/news-image-20261122?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261122)
+[![rank](https://make.fun/badge/news-image-20261122/Yuu078/news-image-20261122/rank.svg)](https://make.fun/bounty/news-image-20261122/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261122)
+[![reward](https://make.fun/badge/news-image-20261122/Yuu078/news-image-20261122/reward.svg)](https://make.fun/bounty/news-image-20261122?utm_source=github&utm_medium=readme&utm_campaign=news-image-20261122)
 
 One-page newspaper poster summing up the world's news of **Sunday 22 November 2026**:
 35 stories across 7 regions, led by the COP31 final deal in Antalya.
