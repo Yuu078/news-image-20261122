@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""THE MORNING ATLAS - Sunday 22 November 2026.
+"""THE MORNING ATLAS v3 - Sunday 22 November 2026.
 One-page newspaper poster: 35 stories, 7 regions.
 Drawn from scratch with Pillow. Deterministic: no timestamps, no randomness,
 no network. Run: python3 render_atlas.py  ->  entry.png (1024x1024).
@@ -83,11 +83,11 @@ def draw_masthead(d):
 
 STRIP = [
     ("200", "nations at COP31"),
-    ("35%", "electrification by 2035"),
-    ("7,641", "Taiwan stocks plunge (points)"),
+    ("0", "mentions in final draft"),
+    ("7,641", "Taiwan stocks plunge"),
     ("100,000", "young Europeans a year"),
     ("50", "Wembanyama points"),
-    ("36", "missing in factory fire"),
+    ("39", "missing in factory fire"),
 ]
 
 
@@ -100,9 +100,11 @@ def draw_strip(d):
         nf = fnt(SANS_B, size)
         nw = d.textlength(num, font=nf)
         d.text((x + (cell_w - nw) / 2, 127), num, font=nf, fill=NAVY)
-        for i, ln in enumerate(wrap(d, label, fnt(SANS, 10), cell_w - 10)[:2]):
-            centre(d, 150 + i * 11, ln, fnt(SANS, 10), fill=SOFT,
-                   x0=x, x1=x + cell_w)
+        lines = wrap(d, label, fnt(SANS, 10), cell_w - 10)
+        if len(lines) != 1:
+            raise SystemExit("strip label wraps past one line: %r" % label)
+        centre(d, 152, lines[0], fnt(SANS, 10), fill=SOFT,
+               x0=x, x1=x + cell_w)
         x += cell_w + gap
 
 # ---- illustration helpers -------------------------------------------------
@@ -115,14 +117,16 @@ def banner(d, x, y, label):
 
 
 def big_num(d, x, y, w, h, num, fill=NAVY):
+    """Key number on a solid PAPER chip, bottom-right of the illustration,
+    so it never collides with scene elements."""
     n = len(num)
     size = 22 if n <= 2 else (18 if n <= 4 else 14)
     f = fnt(SANS_B, size)
     tw = d.textlength(num, font=f)
-    px, py = x + w - tw - 5, y + h - size - 4
-    for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-        d.text((px + ox, py + oy), num, font=f, fill=(255, 255, 255))
-    d.text((px, py), num, font=f, fill=fill)
+    cx1, cy1 = x + w - 4, y + h - 4
+    cx0, cy0 = cx1 - tw - 10, cy1 - size - 7
+    d.rectangle([cx0, cy0, cx1, cy1], fill=PAPER, outline=INK, width=1)
+    d.text((cx0 + 5, cy0 + 2), num, font=f, fill=fill)
 
 
 def num_badge(d, x, y, n):
@@ -265,6 +269,17 @@ def scene_hormuz(d, x, y, w, h):
           width=4)
 
 
+def scene_hormuz2(d, x, y, w, h):
+    """Tanker ablaze in the strait — card 2 (Hormuz strikes)."""
+    scene_hormuz(d, x, y, w, h)
+    d.polygon([(x + 150, y + 8), (x + 162, y - 4), (x + 174, y + 8)],
+              fill=(240, 120, 20))
+    d.polygon([(x + 156, y + 8), (x + 162, y + 0), (x + 168, y + 8)], fill=RED)
+    for sx, sy, r in [(150, -2, 5), (164, -6, 6), (178, -2, 4)]:
+        d.ellipse([x + sx - r, y + sy, x + sx + r, y + sy + 2 * r],
+                  fill=(90, 90, 96))
+
+
 def scene_gaza(d, x, y, w, h):
     d.rectangle([x, y, x + w, y + h], fill=(238, 226, 198))
     d.line([(x, y + h - 6), (x + w, y + h - 6)], fill=(150, 120, 80), width=2)
@@ -335,38 +350,46 @@ def scene_mexico(d, x, y, w, h):
 
 # ---- hero + cards ---------------------------------------------------------
 
-HERO_BODY = ("Talks ran past Friday's deadline into overtime; a final draft "
-             "landed in the early hours of Sunday. It drops fossil-fuel "
-             "phase-out language and targets 35% electrification by 2035.")
+HERO_BODY = ("The longest climate summit ever ends with nothing adopted. "
+             "The final draft never named fossil fuels; the EU, UK and "
+             "Panama said no. Kurum: \u2018There is no consensus \u2014 these "
+             "decisions have not been adopted.\u2019")
 
 
 def draw_hero(d):
     d.rectangle([16, 176, 1008, 306], outline=INK, width=2)
     scene_cop31(d, 17, 177, 594, 128)
     hf = fnt(SANS_B, 46)
-    hw = d.textlength("200", font=hf)
-    hx, hy = 611 - 8 - hw, 226
+    hw = d.textlength("0", font=hf)
+    hx, hy = 611 - 8 - hw, 214
     for ox, oy in ((-2, 0), (2, 0), (0, -2), (0, 2), (-2, -2), (2, 2)):
-        d.text((hx + ox, hy + oy), "200", font=hf, fill=(255, 255, 255))
-    d.text((hx, hy), "200", font=hf, fill=RED)
+        d.text((hx + ox, hy + oy), "0", font=hf, fill=(255, 255, 255))
+    d.text((hx, hy), "0", font=hf, fill=RED)
+    cap = fnt(SANS_B, 9)
+    for i, ln in enumerate(("mentions of fossil fuels", "in the final draft")):
+        tw = d.textlength(ln, font=cap)
+        for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            d.text((603 - tw + ox, 268 + i * 11 + oy), ln, font=cap,
+                   fill=(255, 255, 255))
+        d.text((603 - tw, 268 + i * 11), ln, font=cap, fill=NAVY)
     banner(d, 17, 177, "COP31")
     num_badge(d, 590, 177, 1)
     d.text((623, 180), "1  ·  THE BIG STORY", font=fnt(SANS_B, 10), fill=RED)
-    d.text((623, 196), "COP31 FINAL DEAL IN SIGHT", font=fnt(SANS_B, 20),
+    d.text((623, 196), "COP31 TALKS COLLAPSE \u2014 NO DEAL", font=fnt(SANS_B, 20),
            fill=INK)
     for i, ln in enumerate(wrap(d, HERO_BODY, fnt(SANS, 12), 372)):
         d.text((623, 224 + i * 15), ln, font=fnt(SANS, 12), fill=INK)
-    d.text((623, 288), "Antalya, Turkey  ·  (Reuters; AP; BBC)",
+    d.text((623, 288), "Antalya, Turkey  ·  (Reuters; wires)",
            font=fnt(SANS_I, 10), fill=SOFT)
 
 
 CARDS = [
-    (2, "BAHRAIN", "IRAN HITS BAHRAIN",
-     "Iranian strike hits a civilian plant; Saudi downs 3 missiles and 1 drone.",
-     "(News Media House; wires)", scene_bahrain, "3"),
+    (2, "HORMUZ", "TANKERS HIT IN HORMUZ",
+     "Iran strikes Bahrain again; 3 tankers hit in Hormuz; US jets hit Qeshm.",
+     "(AP; Reuters; UKMTO)", scene_hormuz2, "3"),
     (3, "INDONESIA", "INDONESIA FACTORY FIRE",
-     "Search for 36 missing after fire at Milkita candy factory in Cikande, Serang.",
-     "(Reuters; BBC)", scene_indonesia, "36"),
+     "3 dead, 39 missing as search goes on after Milkita factory fire, Cikande.",
+     "(Reuters; AP; AFP)", scene_indonesia, "39"),
     (4, "LAS VEGAS", "VERSTAPPEN WINS LAS VEGAS GP",
      "Verstappen wins a Las Vegas GP with 34 lead changes; two Ferraris collide.",
      "(BBC)", scene_lasvegas, "34"),
@@ -380,7 +403,7 @@ CARDS = [
      "Stocks fell 7,641 points last week; fund steps in, short-selling curbed.",
      "(wires)", scene_taiwan, "7,641"),
     (8, "HORMUZ", "PUGH SWIMS THE STRAIT",
-     "Lewis Pugh, 56, finishes a 3-day, 15-km swim through the strait.",
+     "Lewis Pugh, 56, ends 3-day, 15-km swim as tankers burned nearby.",
      "(Daily Perspective; wires)", scene_hormuz, "15"),
     (9, "GAZA", "GAZA AID WORKERS KILLED",
      "Israeli troops kill 3 Palestinians handing out supplies, witnesses say.",
@@ -484,7 +507,7 @@ JAPAN = [(130, 31), (132, 33), (135, 34), (137, 35), (139, 37), (140, 39),
          (141, 41), (142, 43), (144, 44), (143, 42), (141, 39), (139, 36),
          (136, 34), (133, 34), (131, 32)]
 
-MAP_Y0, MAP_Y1 = 646, 786
+MAP_Y0, MAP_Y1 = 646, 780
 LAT_TOP, LAT_BOT = 80, -58
 
 
@@ -516,15 +539,17 @@ def draw_map(d):
                          ("LATIN AMERICA 3", -62, -16),
                          ("EUROPE 7", 18, 60),
                          ("AFRICA 4", 18, 6),
-                         ("ASIA-PACIFIC 7", 88, 52)]:
+                         ("MIDDLE EAST 4", 47, 20),
+                         ("ASIA-PACIFIC 8", 88, 52)]:
         lx, ly = proj(lo, la)
-        for ox, oy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            d.text((lx + ox, ly + oy), text, font=lab, fill=(255, 255, 255))
+        tw = d.textlength(text, font=lab)
+        d.rectangle([lx - 3, ly - 2, lx + tw + 3, ly + 12], fill=PAPER,
+                    outline=INK, width=1)
         d.text((lx, ly), text, font=lab, fill=NAVY)
-    d.rectangle([16, 770, 1008, MAP_Y1], fill=PAPER)
-    centre(d, 773,
-           "Europe 7  ·  Asia-Pacific 7  ·  North America 6  ·  Middle East 4  ·  "
-           "Africa 4  ·  Latin America 3  ·  Global 4 (no pin)",
+    d.rectangle([16, MAP_Y1 - 16, 1008, MAP_Y1], fill=PAPER)
+    centre(d, MAP_Y1 - 13,
+           "Europe 7  ·  Asia-Pacific 8  ·  North America 6  ·  Middle East 4  ·  "
+           "Africa 4  ·  Latin America 3  ·  Global 3 (no pin)",
            fnt(SANS_B, 10), fill=NAVY)
     pins = [(1, 30.7, 36.9), (2, 50.6, 26.2), (3, 106.2, -6.1),
             (4, -115.1, 36.2), (5, -98.5, 29.4), (6, -0.1, 51.5),
@@ -546,42 +571,41 @@ WIRE = [
     (13, "07:10", "Nigerian youth not shaping next year's election", "BBC"),
     (14, "07:43", "Catherine's \u201croad to recovery\u201d fronts Sunday papers", "BBC"),
     (15, "08:59", "Virginia confirms first measles death of year", "WJLA"),
-    (16, "10:00", "Ruto battles to keep key voting blocs for Kenya 2027", "The Standard"),
-    (17, "11:05", "Brazilian town clears debris after deadly storm", "wires"),
-    (18, "11:39", "BBC apologises over Strictly noise disruption; phone seized", "BBC"),
+    (16, "09:00", "Japan's pilotless air taxi carries first passengers", "wires"),
+    (17, "10:00", "Ruto battles to keep key voting blocs for Kenya 2027", "The Standard"),
+    (18, "11:05", "Brazilian town clears debris after deadly storm", "wires"),
     (19, "11:43", "Trump demands Nvidia bring back Jensen Huang", "wires"),
-    (20, "12:00", "Real people find their work cloned by AI characters", "BBC"),
-    (21, "12:17", "Edo governor ready to supervise execution of kidnappers", "Vanguard"),
-    (22, "12:19", "Beijing rejects US ban on Chinese-owned telecom firms", "wires"),
+    (20, "12:17", "Edo governor ready to supervise execution of kidnappers", "Vanguard"),
+    (21, "12:19", "Beijing rejects US ban on Chinese-owned telecom firms", "wires"),
+    (22, "12:33", "Spain to expand banking tax to fund housing, PM says", "wires"),
     (23, "12:41", "Ebola death toll passes 5,700 in DR Congo outbreak", "wires"),
     (24, "12:51", "Melania Trump hopes for Ukraine\u2013Russia ceasefire by year-end", "wires"),
     (25, "12:56", "Indian parties protest Facebook over deleted accounts", "wires"),
     (26, "13:01", "Theresa May \u201caghast\u201d at Burnham's EU plans", "BBC"),
-    (27, "13:21", "Pulis on Pochettino's first Man Utd game vs Liverpool", "BBC"),
-    (28, "13:22", "Tinubu asks parliament to decriminalise attempted suicide", "TimesLIVE"),
-    (29, "13:35", "11+ dead in India after drinking illicit alcohol", "wires"),
-    (30, "14:09", "Australia vows to regulate AI shoppers, surveillance pricing", "wires"),
-    (31, "14:17", "Why Arsenal trail in Women's Champions League race", "BBC"),
-    (32, "14:41", "Zelensky: next peace talks must bring real progress", "wires"),
+    (27, "13:22", "Tinubu asks parliament to decriminalise attempted suicide", "TimesLIVE"),
+    (28, "13:35", "11 dead, 180+ in hospital after toxic liquor in Manipur", "wires"),
+    (29, "14:09", "Australia vows to regulate AI shoppers, surveillance pricing", "wires"),
+    (30, "14:17", "Why Arsenal trail in Women's Champions League race", "BBC"),
+    (31, "14:41", "Zelensky: next peace talks must bring real progress", "wires"),
+    (32, "15:02", "Finland reimposes flight restrictions over eastern Gulf", "wires"),
     (33, "15:16", "IDF renews attacks on southern Lebanese towns", "wires"),
     (34, "15:16", "EU and Indonesia sign trade deal after 10 years of talks", "wires"),
     (35, "20:30", "U-17 World Cup Day 4: Mexico face Cameroon in Doha", "FIFA"),
 ]
 
-
 def draw_wire(d):
-    d.text((16, 792), "THE WIRE \u2014 23 more stories, as they broke (WIB)",
+    d.text((16, 784), "THE WIRE \u2014 23 more stories, as they broke (WIB)",
            font=fnt(SANS_B, 13), fill=INK)
     f = fnt(SANS, 11)
     fb = fnt(SANS_B, 11)
     for i, (n, tm, text, src) in enumerate(WIRE):
         col, row = divmod(i, 12)
         x = 16 + col * 496
-        y = 810 + row * 11.5
+        y = 800 + row * 12.5
         head = "%d \u00b7 %s  " % (n, tm)
         line = head + text + "  (%s)" % src
         if d.textlength(line, font=f) > 488:
-            print("WIRE OVERFLOW:", n, line, file=sys.stderr)
+            raise SystemExit("WIRE OVERFLOW: %d %s" % (n, line))
         d.text((x, y), head, font=fb, fill=RED)
         d.text((x + d.textlength(head, font=fb), y), text + "  (%s)" % src,
                font=f, fill=INK)
@@ -589,13 +613,13 @@ def draw_wire(d):
 
 # ---- date check + footer --------------------------------------------------
 
-STAMP = "Verified at 15:33 WIB"
+STAMP = "Verified at 20:37 WIB"
 
 DATE_LINES = [
     "\u00d7 \u201cEl Chapo Isidro\u201d arrested \u2014 captured 20 Nov, announced "
     "21 Nov (Reuters/AP). Not 22 Nov.",
-    "\u00d7 Mamdani's Rikers Island closure plan \u2014 announced 20 Nov "
-    "(AP/BBC 21 Nov). Not 22 Nov.",
+    "\u00d7 Trump\u2013Xi\u2013Putin Shenzhen summit \u2014 held Thu 19 Nov at "
+    "APEC (WSJ; Le Monde). Not 22 Nov.",
 ]
 
 
@@ -614,8 +638,8 @@ def draw_footer(d):
            "All 35 stories happened or were first reported on Sunday 22 November 2026.",
            fnt(SERIF_I, 11), fill=INK)
     centre(d, 1012,
-           "Sources: Reuters \u00b7 AP \u00b7 BBC \u00b7 wires \u00b7 NFL/DAZN/CNN \u00b7 "
-           "Daily Perspective \u00b7 News Media House \u00b7 The Standard \u00b7 Vanguard \u00b7 "
+           "Sources: Reuters \u00b7 AP \u00b7 BBC \u00b7 AFP \u00b7 UKMTO \u00b7 wires \u00b7 "
+           "NFL/DAZN/CNN \u00b7 Daily Perspective \u00b7 The Standard \u00b7 Vanguard \u00b7 "
            "TimesLIVE \u00b7 WJLA \u00b7 FIFA",
            fnt(SANS, 9), fill=SOFT)
 
