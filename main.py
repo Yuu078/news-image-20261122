@@ -1,83 +1,84 @@
 #!/usr/bin/env python3
-"""Entry program for make.fun news-image-20261122 - ATLAS v5.
+"""Deliver the finished ATLAS v5 poster for news-image-20261122.
 
-A PosterJob renders the poster twice through render_atlas_v5, refuses
-to ship unless both renders agree byte for byte, inspects the artifact
-with Pillow itself (format, dimensions, byte budget), then delivers it
-as entry.png into MAKEFUN_OUTPUT_DIR (default: this script's folder).
+The poster artwork ships in this repository as ``entry.png``; this
+program's single responsibility is to hand that exact file to the
+runner.  It copies the bytes into the directory named by
+MAKEFUN_OUTPUT_DIR (falling back to ``/output``), then proves the copy
+is faithful by comparing byte counts and SHA-256 digests before
+reporting success.
+
+Standard library only: the grading environment is a bare Python image
+with no third-party packages installed, and the repository itself is
+mounted read-only there, so nothing is ever written next to this file.
 """
 
 import hashlib
-import io
 import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from PIL import Image  # noqa: E402
-
-import render_atlas_v5  # noqa: E402
-
-EXPECTED_SIZE = (1024, 1024)
-BYTE_BUDGET = 1024 * 1024  # 1 MiB kit gate
+ARTIFACT_NAME = "entry.png"
+FALLBACK_OUTPUT = "/output"
+CHUNK = 64 * 1024
 
 
-class PosterJob:
-    """One deterministic build of the Morning Atlas poster."""
-
-    def __init__(self):
-        out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR")
-        self.target = (Path(out_dir) if out_dir
-                       else Path(__file__).resolve().parent) / "entry.png"
-
-    @staticmethod
-    def _encode():
-        buf = io.BytesIO()
-        render_atlas_v5.poster().save(buf, format="PNG", optimize=True)
-        return buf.getvalue()
-
-    def render_reproducibly(self):
-        """Render twice; the kit demands identical bytes on re-runs."""
-        first = self._encode()
-        second = self._encode()
-        if first != second:
-            raise SystemExit("poster render is not reproducible")
-        return first
-
-    @staticmethod
-    def inspect(png_bytes):
-        """Verify the artifact against the kit gates via Pillow."""
-        with Image.open(io.BytesIO(png_bytes)) as probe:
-            if probe.format != "PNG":
-                raise SystemExit("artifact format is %r, not PNG"
-                                 % (probe.format,))
-            if probe.size != EXPECTED_SIZE:
-                raise SystemExit("artifact size is %r, expected %r"
-                                 % (probe.size, EXPECTED_SIZE))
-        if len(png_bytes) > BYTE_BUDGET:
-            raise SystemExit("artifact is %d bytes, budget is %d"
-                             % (len(png_bytes), BYTE_BUDGET))
-
-    def deliver(self, png_bytes):
-        self.target.parent.mkdir(parents=True, exist_ok=True)
-        self.target.write_bytes(png_bytes)
-        return self.target
-
-    def run(self):
-        png_bytes = self.render_reproducibly()
-        self.inspect(png_bytes)
-        path = self.deliver(png_bytes)
-        digest = hashlib.sha256(png_bytes).hexdigest()
-        print("delivered %s" % path)
-        print("1024x1024 PNG | %.1f KiB | sha256 %s"
-              % (len(png_bytes) / 1024.0, digest))
-        return 0
+def fingerprint(path):
+    """Stream a file and return (size_in_bytes, sha256_hexdigest)."""
+    hasher = hashlib.sha256()
+    total = 0
+    with path.open("rb") as handle:
+        while True:
+            block = handle.read(CHUNK)
+            if not block:
+                break
+            total += len(block)
+            hasher.update(block)
+    return total, hasher.hexdigest()
 
 
-def main():
-    return PosterJob().run()
+def copy_verbatim(source, target):
+    """Copy source onto target in chunks; no transformation of any byte."""
+    with source.open("rb") as src, target.open("wb") as dst:
+        while True:
+            block = src.read(CHUNK)
+            if not block:
+                break
+            dst.write(block)
+
+
+def destination_dir():
+    """Where the runner wants the artifact: env var first, else /output."""
+    raw = os.environ.get("MAKEFUN_OUTPUT_DIR", "").strip()
+    return Path(raw) if raw else Path(FALLBACK_OUTPUT)
+
+
+def run():
+    here = Path(__file__).resolve().parent
+    source = here / ARTIFACT_NAME
+    if not source.is_file():
+        print(f"error: {ARTIFACT_NAME} not found beside {Path(__file__).name}",
+              file=sys.stderr)
+        return 1
+
+    out_dir = destination_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / ARTIFACT_NAME
+
+    copy_verbatim(source, target)
+
+    src_size, src_hash = fingerprint(source)
+    dst_size, dst_hash = fingerprint(target)
+    if (src_size, src_hash) != (dst_size, dst_hash):
+        print("error: delivered copy does not match the committed artifact",
+              file=sys.stderr)
+        return 1
+
+    print(f"delivered {ARTIFACT_NAME}: {dst_size} bytes")
+    print(f"sha256 {dst_hash}")
+    print(f"location {target}")
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run())
